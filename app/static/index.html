@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>图片敏感词链接检测平台</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">AI</div>
+      <div><strong id="brandTitle">图片检测平台</strong><span>在线工具箱</span></div>
+    </div>
+    <nav>
+      <button class="nav-item active"><span>🔎</span> 图片敏感词清除</button>
+      <button class="nav-item disabled" title="可继续添加新工具"><span>＋</span> 添加其他工具</button>
+    </nav>
+    <div class="sidebar-note">网页采用服务器端 OCR，可避开浏览器跨域限制。识别失败时保留原链接，避免误删。</div>
+  </aside>
+
+  <main class="main">
+    <header>
+      <div><p class="eyebrow">EXCEL · IMAGE OCR</p><h1>图片敏感词链接批量清除</h1><p>上传 Excel，尽可能识别每个图片链接中的可见文本，命中关键词后清除相应链接。</p></div>
+      <div class="status-pill"><i></i> 服务在线</div>
+    </header>
+
+    <section class="panel" id="formPanel">
+      <form id="jobForm">
+        <div class="field full">
+          <label>Excel 文件</label>
+          <label class="dropzone" id="dropzone">
+            <input id="fileInput" name="file" type="file" accept=".xlsx,.xlsm" required>
+            <span class="upload-icon">↑</span>
+            <strong id="fileLabel">点击选择或拖入 Excel 文件</strong>
+            <small id="fileHint">支持 .xlsx / .xlsm，文件上限由服务器设置</small>
+          </label>
+        </div>
+
+        <div class="field full">
+          <label for="keywords">检测关键词</label>
+          <textarea id="keywords" name="keywords_raw" rows="4" placeholder="例如：top, best seller, sale&#10;多个词可用逗号、分号或换行分隔" required></textarea>
+          <small>英文默认不区分大小写；中文词组按连续文本匹配。</small>
+        </div>
+
+        <div class="options-grid">
+          <div class="field">
+            <label for="matchMode">匹配方式</label>
+            <select id="matchMode" name="match_mode">
+              <option value="whole">完整单词（推荐）</option>
+              <option value="substring">包含关键词</option>
+            </select>
+          </div>
+          <label class="switch-card"><input id="caseSensitive" type="checkbox"><span class="switch"></span><span><b>区分大小写</b><small>默认 TOP、Top、top 视为相同</small></span></label>
+          <label class="switch-card"><input id="enhancedOcr" type="checkbox"><span class="switch"></span><span><b>强化 OCR</b><small>放大、灰度及多角度识别，速度较慢</small></span></label>
+        </div>
+
+        <div class="field full hidden" id="passwordField">
+          <label for="password">网站访问密码</label>
+          <input id="password" type="password" autocomplete="current-password" placeholder="请输入管理员设置的访问密码">
+        </div>
+
+        <div class="notice"><b>安全规则：</b>只处理公开 http/https 图片；内网地址会被拒绝。下载或识别失败的链接会保留，并记录在日志中。</div>
+        <button class="primary" id="submitButton" type="submit">开始检测并清除</button>
+      </form>
+    </section>
+
+    <section class="panel hidden" id="progressPanel">
+      <div class="progress-head"><div><p class="eyebrow">PROCESSING</p><h2 id="progressTitle">正在创建任务</h2></div><strong id="progressPercent">0%</strong></div>
+      <div class="progress-track"><span id="progressBar"></span></div>
+      <div class="stats">
+        <div><span>图片链接</span><b id="totalLinks">0</b></div>
+        <div><span>已检测</span><b id="processedLinks">0</b></div>
+        <div><span>命中链接</span><b id="matchedLinks">0</b></div>
+        <div><span>失败保留</span><b id="failedLinks">0</b></div>
+      </div>
+      <p class="muted" id="progressMessage">文件正在上传，请不要关闭页面。</p>
+    </section>
+
+    <section class="panel success hidden" id="resultPanel">
+      <div class="result-icon">✓</div><h2>处理完成</h2>
+      <p id="resultSummary">已生成处理后的 Excel 和 OCR 全文识别日志。</p>
+      <div class="download-row"><a class="primary link-button" id="downloadExcel">下载处理后的 Excel</a><a class="secondary link-button" id="downloadLog">下载 OCR 识别日志</a></div>
+      <button class="text-button" id="newTask" type="button">处理另一个文件</button>
+    </section>
+
+    <section class="panel error hidden" id="errorPanel"><h2>处理失败</h2><p id="errorMessage"></p><button class="secondary" id="retryButton" type="button">返回重试</button></section>
+
+    <footer>识别效果会受图片清晰度、字号、字体、角度和遮挡影响；OCR 无法保证识别出每一个字符。</footer>
+  </main>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+1. 打开 GitHub 仓库 image-text-cleaner-web。
+2. 点击 Add file → Upload files。
+3. 解压本压缩包后，进入解压目录，选择里面的全部文件和文件夹（不是上传压缩包本身）。
+4. 将全部内容拖到 GitHub 上传区域。
+5. 页面底部点击 Commit changes。
+6. 确认仓库根目录能直接看到 Dockerfile、render.yaml、requirements.txt 和 app 文件夹。

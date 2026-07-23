@@ -1,0 +1,16 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      APP_TITLE: 图片敏感词链接检测平台
+      APP_PASSWORD: change-this-password
+      MAX_UPLOAD_MB: 50
+      MAX_URLS_PER_JOB: 5000
+      MAX_IMAGE_MB: 15
+      MAX_CONCURRENT_JOBS: 1
+      JOB_TTL_HOURS: 24
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

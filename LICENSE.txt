@@ -1,0 +1,2 @@
+This generated project may be used, modified, and deployed by the recipient.
+Third-party dependencies retain their respective licenses.

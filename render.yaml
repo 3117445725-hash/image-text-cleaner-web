@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: image-text-cleaner
+    runtime: docker
+    plan: standard
+    region: singapore
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: APP_TITLE
+        value: 图片敏感词链接检测平台
+      - key: APP_PASSWORD
+        generateValue: true
+      - key: MAX_UPLOAD_MB
+        value: "50"
+      - key: MAX_URLS_PER_JOB
+        value: "5000"
+      - key: MAX_IMAGE_MB
+        value: "15"
+      - key: MAX_CONCURRENT_JOBS
+        value: "1"
+      - key: JOB_TTL_HOURS
+        value: "24"

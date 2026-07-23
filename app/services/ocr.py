@@ -1,0 +1,92 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from threading import Lock
+
+import cv2
+import numpy as np
+from rapidocr import RapidOCR
+
+
+@dataclass(frozen=True)
+class OCRResult:
+    text: str
+    lines: tuple[str, ...]
+    average_score: float | None
+
+
+class OCRService:
+    def __init__(self) -> None:
+        self._engine: RapidOCR | None = None
+        self._lock = Lock()
+
+    def _get_engine(self) -> RapidOCR:
+        if self._engine is None:
+            with self._lock:
+                if self._engine is None:
+                    self._engine = RapidOCR()
+        return self._engine
+
+    @staticmethod
+    def _decode(content: bytes) -> np.ndarray:
+        data = np.frombuffer(content, dtype=np.uint8)
+        image = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        if image is None:
+            raise ValueError("无法解码图片")
+        h, w = image.shape[:2]
+        if h * w > 40_000_000:
+            scale = (40_000_000 / (h * w)) ** 0.5
+            image = cv2.resize(image, (max(1, int(w * scale)), max(1, int(h * scale))))
+        return image
+
+    @staticmethod
+    def _variants(image: np.ndarray, enhanced: bool) -> list[np.ndarray]:
+        variants = [image]
+        if not enhanced:
+            return variants
+
+        h, w = image.shape[:2]
+        if max(h, w) < 1600:
+            scale = min(2.0, 1600 / max(h, w))
+            enlarged = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+            variants.append(enlarged)
+
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+        variants.append(gray)
+        variants.extend([
+            cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE),
+            cv2.rotate(image, cv2.ROTATE_180),
+            cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE),
+        ])
+        return variants
+
+    def recognize(self, content: bytes, *, enhanced: bool = False) -> OCRResult:
+        image = self._decode(content)
+        engine = self._get_engine()
+        lines: list[str] = []
+        scores: list[float] = []
+        seen: set[str] = set()
+
+        for variant in self._variants(image, enhanced):
+            with self._lock:
+                result = engine(variant, use_det=True, use_cls=True, use_rec=True)
+            txts = tuple(getattr(result, "txts", ()) or ())
+            result_scores = tuple(getattr(result, "scores", ()) or ())
+            for index, raw_text in enumerate(txts):
+                text = str(raw_text).strip()
+                key = " ".join(text.casefold().split())
+                if text and key not in seen:
+                    seen.add(key)
+                    lines.append(text)
+                    if index < len(result_scores):
+                        try:
+                            scores.append(float(result_scores[index]))
+                        except (TypeError, ValueError):
+                            pass
+
+        avg = sum(scores) / len(scores) if scores else None
+        return OCRResult("\n".join(lines), tuple(lines), avg)
+
+
+ocr_service = OCRService()
