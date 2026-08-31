@@ -27,13 +27,14 @@ if ($listener) {
     throw "端口 $Port 已被其他程序占用。请先关闭占用程序。"
 }
 
+# Full-capability local profile: keep the original service limits instead of reducing functionality.
 $env:DATA_DIR = $Data
 $env:MAX_UPLOAD_MB = '50'
-$env:MAX_URLS_PER_JOB = '3000'
-$env:MAX_IMAGE_MB = '12'
-$env:MAX_IMAGE_PIXELS = '16000000'
+$env:MAX_URLS_PER_JOB = '5000'
+$env:MAX_IMAGE_MB = '15'
+$env:MAX_IMAGE_PIXELS = '40000000'
 $env:MAX_CONCURRENT_JOBS = '1'
-$env:JOB_TTL_HOURS = '12'
+$env:JOB_TTL_HOURS = '24'
 
 New-Item -ItemType Directory -Force -Path $Runtime, $Data | Out-Null
 
