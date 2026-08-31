@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main, optimize-production-hardening]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compile Python sources
+        run: python -m compileall -q app
+
+      - name: Import application
+        env:
+          APP_PASSWORD: ci-test-password
+          DATA_DIR: /tmp/image-text-cleaner-ci
+        run: python -c "from app.main import app; assert app.title"
+
+      - name: Verify RapidOCR runtime configuration
+        env:
+          OCR_INTRA_OP_THREADS: '2'
+          OCR_INTER_OP_THREADS: '1'
+          OCR_CPU_MEM_ARENA: '1'
+        run: |
+          python - <<'PY'
+          from app.services.ocr import ocr_service
+          engine = ocr_service._get_engine()
+          assert engine is not None
+          info = ocr_service.runtime_info()
+          assert info['intra_op_threads'] == 2
+          assert info['inter_op_threads'] == 1
+          assert info['cpu_mem_arena'] is True
+          print('RapidOCR constructor/runtime config OK')
+          PY
+
+      - name: Verify Docker Compose config
+        run: docker compose config -q
+
+  windows-scripts:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse all PowerShell scripts
+        shell: powershell
+        run: |
+          $errors = @()
+          Get-ChildItem -Path windows -Filter *.ps1 -File | ForEach-Object {
+            $tokens = $null
+            $parseErrors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$parseErrors)
+            if ($parseErrors.Count -gt 0) {
+              $errors += $parseErrors | ForEach-Object { "$($_.Extent.File):$($_.Extent.StartLineNumber): $($_.Message)" }
+            }
+          }
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+          Write-Host 'All Windows PowerShell 5.1 scripts parsed successfully.'
