@@ -18,7 +18,13 @@ from app.config import (
     DATA_DIR,
     JOB_TTL_HOURS,
     MAX_CONCURRENT_JOBS,
+    MAX_IMAGE_MB,
+    MAX_IMAGE_PIXELS,
     MAX_UPLOAD_MB,
+    MAX_URLS_PER_JOB,
+    OCR_CPU_MEM_ARENA,
+    OCR_INTER_OP_THREADS,
+    OCR_INTRA_OP_THREADS,
     OCR_PREWARM,
 )
 from app.models import job_store
@@ -247,4 +253,16 @@ def download(job_id: str, kind: str, x_app_password: str | None = Header(default
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "performance": {
+            **ocr_service.runtime_info(),
+            "prewarm_enabled": OCR_PREWARM,
+            "max_concurrent_jobs": MAX_CONCURRENT_JOBS,
+            "max_upload_mb": MAX_UPLOAD_MB,
+            "max_urls_per_job": MAX_URLS_PER_JOB,
+            "max_image_mb": MAX_IMAGE_MB,
+            "max_image_pixels": MAX_IMAGE_PIXELS,
+            "data_dir": str(DATA_DIR),
+        },
+    }
