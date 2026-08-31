@@ -19,10 +19,12 @@ from app.config import (
     JOB_TTL_HOURS,
     MAX_CONCURRENT_JOBS,
     MAX_UPLOAD_MB,
+    OCR_PREWARM,
 )
 from app.models import job_store
 from app.services.excel import process_workbook
 from app.services.matcher import parse_keywords
+from app.services.ocr import ocr_service
 
 job_slots = threading.Semaphore(MAX_CONCURRENT_JOBS)
 
@@ -31,6 +33,8 @@ job_slots = threading.Semaphore(MAX_CONCURRENT_JOBS)
 async def lifespan(_: FastAPI):
     job_store.recover_interrupted()
     cleanup_old_jobs()
+    if OCR_PREWARM:
+        ocr_service.warmup()
     yield
 
 
