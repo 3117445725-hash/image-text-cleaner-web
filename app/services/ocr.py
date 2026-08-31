@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from threading import Lock
+from typing import Iterator
 
 import cv2
 import numpy as np
 from rapidocr import RapidOCR
+
+from app.config import MAX_IMAGE_PIXELS
 
 
 @dataclass(frozen=True)
@@ -34,32 +37,34 @@ class OCRService:
         if image is None:
             raise ValueError("无法解码图片")
         h, w = image.shape[:2]
-        if h * w > 40_000_000:
-            scale = (40_000_000 / (h * w)) ** 0.5
-            image = cv2.resize(image, (max(1, int(w * scale)), max(1, int(h * scale))))
+        pixels = h * w
+        if pixels > MAX_IMAGE_PIXELS:
+            scale = (MAX_IMAGE_PIXELS / pixels) ** 0.5
+            image = cv2.resize(
+                image,
+                (max(1, int(w * scale)), max(1, int(h * scale))),
+                interpolation=cv2.INTER_AREA,
+            )
         return image
 
     @staticmethod
-    def _variants(image: np.ndarray, enhanced: bool) -> list[np.ndarray]:
-        variants = [image]
+    def _variants(image: np.ndarray, enhanced: bool) -> Iterator[np.ndarray]:
+        # Yield one variant at a time instead of keeping all copies in memory.
+        yield image
         if not enhanced:
-            return variants
+            return
 
         h, w = image.shape[:2]
         if max(h, w) < 1600:
             scale = min(2.0, 1600 / max(h, w))
-            enlarged = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-            variants.append(enlarged)
+            yield cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
 
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-        variants.append(gray)
-        variants.extend([
-            cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE),
-            cv2.rotate(image, cv2.ROTATE_180),
-            cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE),
-        ])
-        return variants
+        yield cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+
+        yield cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+        yield cv2.rotate(image, cv2.ROTATE_180)
+        yield cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
     def recognize(self, content: bytes, *, enhanced: bool = False) -> OCRResult:
         image = self._decode(content)
@@ -69,21 +74,26 @@ class OCRService:
         seen: set[str] = set()
 
         for variant in self._variants(image, enhanced):
-            with self._lock:
-                result = engine(variant, use_det=True, use_cls=True, use_rec=True)
-            txts = tuple(getattr(result, "txts", ()) or ())
-            result_scores = tuple(getattr(result, "scores", ()) or ())
-            for index, raw_text in enumerate(txts):
-                text = str(raw_text).strip()
-                key = " ".join(text.casefold().split())
-                if text and key not in seen:
-                    seen.add(key)
-                    lines.append(text)
-                    if index < len(result_scores):
-                        try:
-                            scores.append(float(result_scores[index]))
-                        except (TypeError, ValueError):
-                            pass
+            try:
+                with self._lock:
+                    result = engine(variant, use_det=True, use_cls=True, use_rec=True)
+                txts = tuple(getattr(result, "txts", ()) or ())
+                result_scores = tuple(getattr(result, "scores", ()) or ())
+                for index, raw_text in enumerate(txts):
+                    text = str(raw_text).strip()
+                    key = " ".join(text.casefold().split())
+                    if text and key not in seen:
+                        seen.add(key)
+                        lines.append(text)
+                        if index < len(result_scores):
+                            try:
+                                scores.append(float(result_scores[index]))
+                            except (TypeError, ValueError):
+                                pass
+            finally:
+                # Release temporary enhanced variants eagerly on memory-constrained desktops.
+                if variant is not image:
+                    del variant
 
         avg = sum(scores) / len(scores) if scores else None
         return OCRResult("\n".join(lines), tuple(lines), avg)
