@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import os
 import shutil
 import threading
 import time
@@ -264,5 +265,6 @@ def health() -> dict:
             "max_image_mb": MAX_IMAGE_MB,
             "max_image_pixels": MAX_IMAGE_PIXELS,
             "data_dir": str(DATA_DIR),
+            "temp_dir": os.getenv("TEMP", ""),
         },
     }
