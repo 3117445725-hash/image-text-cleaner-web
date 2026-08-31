@@ -34,9 +34,11 @@ class OCRService:
             with self._lock:
                 if self._engine is None:
                     self._engine = RapidOCR(
-                        intra_op_num_threads=OCR_INTRA_OP_THREADS,
-                        inter_op_num_threads=OCR_INTER_OP_THREADS,
-                        enable_cpu_mem_arena=OCR_CPU_MEM_ARENA,
+                        params={
+                            "EngineConfig.onnxruntime.intra_op_num_threads": OCR_INTRA_OP_THREADS,
+                            "EngineConfig.onnxruntime.inter_op_num_threads": OCR_INTER_OP_THREADS,
+                            "EngineConfig.onnxruntime.enable_cpu_mem_arena": OCR_CPU_MEM_ARENA,
+                        }
                     )
         return self._engine
 
@@ -59,7 +61,7 @@ class OCRService:
         data = np.frombuffer(content, dtype=np.uint8)
         image = cv2.imdecode(data, cv2.IMREAD_COLOR)
         if image is None:
-            raise ValueError("无法解码图片")
+            raise ValueError("Cannot decode image")
         h, w = image.shape[:2]
         pixels = h * w
         if pixels > MAX_IMAGE_PIXELS:
