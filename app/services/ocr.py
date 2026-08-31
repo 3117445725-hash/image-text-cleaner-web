@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 from dataclasses import dataclass
 from threading import Lock
 from typing import Iterator
@@ -28,25 +29,30 @@ class OCRService:
         self._engine: RapidOCR | None = None
         self._lock = Lock()
 
-    def _build_engine(self) -> RapidOCR:
-        params = {
-            "EngineConfig.onnxruntime.intra_op_num_threads": OCR_INTRA_OP_THREADS,
-            "EngineConfig.onnxruntime.inter_op_num_threads": OCR_INTER_OP_THREADS,
-            "EngineConfig.onnxruntime.enable_cpu_mem_arena": OCR_CPU_MEM_ARENA,
-        }
-        return RapidOCR(params=params)
-
     def _get_engine(self) -> RapidOCR:
         if self._engine is None:
             with self._lock:
                 if self._engine is None:
-                    self._engine = self._build_engine()
+                    self._engine = RapidOCR(
+                        intra_op_num_threads=OCR_INTRA_OP_THREADS,
+                        inter_op_num_threads=OCR_INTER_OP_THREADS,
+                        enable_cpu_mem_arena=OCR_CPU_MEM_ARENA,
+                    )
         return self._engine
 
     def warmup(self) -> None:
-        # Creating RapidOCR constructs the ONNX Runtime sessions and loads the models.
-        # Doing this at service startup removes most first-job latency.
-        self._get_engine()
+        engine = self._get_engine()
+        sample = np.full((64, 256, 3), 255, dtype=np.uint8)
+        with self._lock:
+            engine(sample, use_det=True, use_cls=True, use_rec=True)
+
+    def runtime_info(self) -> dict[str, int | bool]:
+        return {
+            "engine_ready": self._engine is not None,
+            "intra_op_threads": OCR_INTRA_OP_THREADS,
+            "inter_op_threads": OCR_INTER_OP_THREADS,
+            "cpu_mem_arena": OCR_CPU_MEM_ARENA,
+        }
 
     @staticmethod
     def _decode(content: bytes) -> np.ndarray:
@@ -67,7 +73,6 @@ class OCRService:
 
     @staticmethod
     def _variants(image: np.ndarray, enhanced: bool) -> Iterator[np.ndarray]:
-        # Yield one variant at a time instead of keeping all copies in memory.
         yield image
         if not enhanced:
             return
@@ -113,6 +118,7 @@ class OCRService:
                     del variant
 
         avg = sum(scores) / len(scores) if scores else None
+        gc.collect(0)
         return OCRResult("\n".join(lines), tuple(lines), avg)
 
 
