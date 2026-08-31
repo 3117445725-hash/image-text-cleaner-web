@@ -8,7 +8,12 @@ import cv2
 import numpy as np
 from rapidocr import RapidOCR
 
-from app.config import MAX_IMAGE_PIXELS
+from app.config import (
+    MAX_IMAGE_PIXELS,
+    OCR_CPU_MEM_ARENA,
+    OCR_INTER_OP_THREADS,
+    OCR_INTRA_OP_THREADS,
+)
 
 
 @dataclass(frozen=True)
@@ -23,12 +28,25 @@ class OCRService:
         self._engine: RapidOCR | None = None
         self._lock = Lock()
 
+    def _build_engine(self) -> RapidOCR:
+        params = {
+            "EngineConfig.onnxruntime.intra_op_num_threads": OCR_INTRA_OP_THREADS,
+            "EngineConfig.onnxruntime.inter_op_num_threads": OCR_INTER_OP_THREADS,
+            "EngineConfig.onnxruntime.enable_cpu_mem_arena": OCR_CPU_MEM_ARENA,
+        }
+        return RapidOCR(params=params)
+
     def _get_engine(self) -> RapidOCR:
         if self._engine is None:
             with self._lock:
                 if self._engine is None:
-                    self._engine = RapidOCR()
+                    self._engine = self._build_engine()
         return self._engine
+
+    def warmup(self) -> None:
+        # Creating RapidOCR constructs the ONNX Runtime sessions and loads the models.
+        # Doing this at service startup removes most first-job latency.
+        self._get_engine()
 
     @staticmethod
     def _decode(content: bytes) -> np.ndarray:
@@ -91,7 +109,6 @@ class OCRService:
                             except (TypeError, ValueError):
                                 pass
             finally:
-                # Release temporary enhanced variants eagerly on memory-constrained desktops.
                 if variant is not image:
                     del variant
 
