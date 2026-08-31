@@ -39,3 +39,28 @@ jobs:
 
       - name: Verify Docker Compose config
         run: docker compose config -q
+
+  windows-scripts:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse all PowerShell scripts
+        shell: pwsh
+        run: |
+          $errors = @()
+          Get-ChildItem -Path windows -Filter *.ps1 -File | ForEach-Object {
+            $tokens = $null
+            $parseErrors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$parseErrors)
+            if ($parseErrors.Count -gt 0) {
+              $errors += $parseErrors | ForEach-Object { "$($_.Extent.File):$($_.Extent.StartLineNumber): $($_.Message)" }
+            }
+          }
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+          Write-Host 'All Windows PowerShell scripts parsed successfully.'
