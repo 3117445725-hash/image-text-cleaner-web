@@ -37,6 +37,23 @@ jobs:
           DATA_DIR: /tmp/image-text-cleaner-ci
         run: python -c "from app.main import app; assert app.title"
 
+      - name: Verify RapidOCR runtime configuration
+        env:
+          OCR_INTRA_OP_THREADS: '2'
+          OCR_INTER_OP_THREADS: '1'
+          OCR_CPU_MEM_ARENA: '1'
+        run: |
+          python - <<'PY'
+          from app.services.ocr import ocr_service
+          engine = ocr_service._get_engine()
+          assert engine is not None
+          info = ocr_service.runtime_info()
+          assert info['intra_op_threads'] == 2
+          assert info['inter_op_threads'] == 1
+          assert info['cpu_mem_arena'] is True
+          print('RapidOCR constructor/runtime config OK')
+          PY
+
       - name: Verify Docker Compose config
         run: docker compose config -q
 
@@ -48,7 +65,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Parse all PowerShell scripts
-        shell: pwsh
+        shell: powershell
         run: |
           $errors = @()
           Get-ChildItem -Path windows -Filter *.ps1 -File | ForEach-Object {
@@ -63,4 +80,4 @@ jobs:
             $errors | ForEach-Object { Write-Error $_ }
             exit 1
           }
-          Write-Host 'All Windows PowerShell scripts parsed successfully.'
+          Write-Host 'All Windows PowerShell 5.1 scripts parsed successfully.'
