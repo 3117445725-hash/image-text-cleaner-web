@@ -27,5 +27,6 @@ OUTBOUND_PROXY = os.getenv("OUTBOUND_PROXY", "").strip() or None
 MAX_UPLOAD_MB = _env_int("MAX_UPLOAD_MB", 50, maximum=500)
 MAX_URLS_PER_JOB = _env_int("MAX_URLS_PER_JOB", 5000, maximum=100_000)
 MAX_IMAGE_MB = _env_int("MAX_IMAGE_MB", 15, maximum=100)
+MAX_IMAGE_PIXELS = _env_int("MAX_IMAGE_PIXELS", 20_000_000, minimum=1_000_000, maximum=80_000_000)
 MAX_CONCURRENT_JOBS = _env_int("MAX_CONCURRENT_JOBS", 1, maximum=16)
 JOB_TTL_HOURS = _env_int("JOB_TTL_HOURS", 24, maximum=24 * 30)
