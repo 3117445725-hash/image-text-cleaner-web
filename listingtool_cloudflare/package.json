@@ -1,0 +1,15 @@
+{
+  "name": "listingtool-cloudflare-user-center",
+  "version": "1.1.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create listingtool-users --binding DB --update-config",
+    "db:init": "wrangler d1 execute listingtool-users --remote --file=schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
