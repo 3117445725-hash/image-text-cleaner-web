@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "listingtool-user-center",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "vars": {
+    "TOKEN_DAYS": "7",
+    "LATEST_VERSION": "1.1.0",
+    "UPDATE_MANDATORY": "false",
+    "UPDATE_DOWNLOAD_URL": "",
+    "UPDATE_SHA256": "",
+    "UPDATE_NOTES": "ListingTool Cloudflare zero-cost user center"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "listingtool-users",
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+    }
+  ]
+}
