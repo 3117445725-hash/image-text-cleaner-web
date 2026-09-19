@@ -1,0 +1,28 @@
+name: ListingTool R13C20 Publish
+
+on:
+  push:
+    branches:
+      - listingtool-release-relay
+    paths:
+      - '.github/workflows/listingtool-r13c20-publish.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+      - name: Publish and verify R13C20
+        run: python listingtool_r13c20_publish.py
+      - name: Upload verification result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r13c20-release-result
+          path: r13c20_release_result.json
+          if-no-files-found: ignore

@@ -1,0 +1,13 @@
+{
+  "timestamp": "1789801906",
+  "nonce": "DZkXlqFSI67gyitI0J_vySg2reI1EjK6",
+  "key_id": "ltrel-20260918-primary-v1",
+  "patch_version": "FIX36R13C20-FColumn-Legacy-Matcher-SafeVocabulary-Cumulative-v1",
+  "app_version": "V1.1.6 RC18 FIX36R13C20 F-Column Legacy Matcher Safe Vocabulary Stable",
+  "sha256": "643c7543774f0ab97c29951e9628c9ba32905563a20242f8b3c616f6068ce21a",
+  "file_size": "217466",
+  "notes_sha256": "4c08d4eb16b6d6c8e74680b2ccefbd0a0f029bf1e673bdf88c3acdcc8c7887bf",
+  "signature": "Rspw2pPaoVEyYa9f4_YL5I5_xtAmGcPp1__a03quSomXVfU-iMNbbm0jwqNEKrTQIxgpOfXXwU7758zdGWeuCQ",
+  "notes": "R13C20 cumulative patch. Restores the exact historical V3.x F-column keyword matcher and removes R13C19 generated title n-gram categories. E remains fixed 品类. F is determined only from title keyword dictionaries: B optimized title first, A original title only if B has no keyword hit; within one dictionary pass, keywords are matched with historical boundary rules and longest configured keyword wins; the mapped standard category value is returned. Product Type/Item Type/Type, cost-table category, SoldEazy task category and source filename are never F sources. To keep older users compatible with newly supported product families without allowing new system aliases to steal the user taxonomy, shipped aliases map to stable standard categories (for example all spoiler/wing/trunk/roof spoiler variants map to Spoiler rather than becoming dozens of F values). If the user has overridden a base system alias such as spoiler, that user label is propagated to the same system canonical family unless the user explicitly maps a more specific alias. Exact user aliases always overwrite identical system aliases. Final template regeneration recomputes F from current A/B titles and the effective keyword dictionary, so an old task cache cannot preserve bad F. Images/OCR, gallery/detail rules, QA, reference persistence, SoldEazy, layout, fixed R10 EXE and online-update modules remain unchanged.",
+  "endpoint": "https://listingtool-user-center.3117445725.workers.dev"
+}
