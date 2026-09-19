@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import re
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -19,6 +20,8 @@ HYPERLINK_FORMULA_RE = re.compile(
     r'^=HYPERLINK\(\s*"(?P<url>https?://[^"]+)"\s*[;,]\s*"(?P<label>[^"]*)"\s*\)$',
     re.IGNORECASE,
 )
+MAX_ARCHIVE_FILES = 20_000
+MAX_UNCOMPRESSED_BYTES = 500 * 1024 * 1024
 
 
 @dataclass
@@ -38,6 +41,23 @@ class LinkResult:
     ocr_text: str
     average_score: float | None
     error: str
+
+
+def _validate_workbook_archive(path: Path) -> None:
+    try:
+        with zipfile.ZipFile(path) as archive:
+            infos = archive.infolist()
+            if len(infos) > MAX_ARCHIVE_FILES:
+                raise ValueError("Excel 文件内部文件数量异常，已拒绝处理")
+            total_uncompressed = sum(info.file_size for info in infos)
+            if total_uncompressed > MAX_UNCOMPRESSED_BYTES:
+                raise ValueError("Excel 解压后体积过大，已拒绝处理")
+            required = {"[Content_Types].xml", "xl/workbook.xml"}
+            names = {info.filename for info in infos}
+            if not required.issubset(names):
+                raise ValueError("文件不是有效的 Excel 工作簿")
+    except zipfile.BadZipFile as exc:
+        raise ValueError("文件不是有效的 Excel 工作簿") from exc
 
 
 def _extract_occurrences(workbook) -> list[LinkOccurrence]:
@@ -69,6 +89,12 @@ def _remove_url_from_text(text: str, url: str) -> str | None:
     return result if result else None
 
 
+def _csv_safe(value: object) -> object:
+    if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
+        return "'" + value
+    return value
+
+
 def process_workbook(
     input_path: Path,
     output_path: Path,
@@ -80,6 +106,7 @@ def process_workbook(
     enhanced_ocr: bool,
     progress_callback: Callable[[int, int, int, int, str], None],
 ) -> tuple[int, int, int, int]:
+    _validate_workbook_archive(input_path)
     keep_vba = input_path.suffix.lower() == ".xlsm"
     workbook = load_workbook(input_path, data_only=False, keep_links=True, keep_vba=keep_vba)
     occurrences = _extract_occurrences(workbook)
@@ -154,16 +181,16 @@ def process_workbook(
         for occurrence in occurrences:
             result = results[occurrence.url]
             writer.writerow([
-                occurrence.sheet,
+                _csv_safe(occurrence.sheet),
                 occurrence.cell,
                 occurrence.url,
                 occurrence.kind,
                 result.status,
                 "是" if result.matched else "否",
-                " | ".join(result.matched_keywords),
-                result.ocr_text,
+                _csv_safe(" | ".join(result.matched_keywords)),
+                _csv_safe(result.ocr_text),
                 "" if result.average_score is None else f"{result.average_score:.4f}",
-                result.error,
+                _csv_safe(result.error),
             ])
 
     return len(unique_urls), matched_count, failed_count, len(changed_cells)

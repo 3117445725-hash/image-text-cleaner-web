@@ -1,0 +1,12 @@
+.git
+.github
+__pycache__/
+*.py[cod]
+*.log
+.env
+.venv/
+venv/
+data/
+.pytest_cache/
+.mypy_cache/
+.DS_Store

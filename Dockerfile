@@ -17,7 +17,11 @@ RUN pip install --upgrade pip setuptools wheel && \
     python -c "from rapidocr import RapidOCR; RapidOCR(); print('RapidOCR ready')"
 
 COPY app ./app
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data && \
+    useradd --create-home --uid 10001 appuser && \
+    chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 10000
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000} --workers 1"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000} --workers 1 --proxy-headers --forwarded-allow-ips='*'"]

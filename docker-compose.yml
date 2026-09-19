@@ -4,6 +4,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+      PORT: 8000
       APP_TITLE: 图片敏感词链接检测平台
       APP_PASSWORD: change-this-password
       MAX_UPLOAD_MB: 50

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import hmac
+import os
 import shutil
 import threading
 import time
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -16,28 +19,56 @@ from app.config import (
     DATA_DIR,
     JOB_TTL_HOURS,
     MAX_CONCURRENT_JOBS,
+    MAX_IMAGE_MB,
+    MAX_IMAGE_PIXELS,
     MAX_UPLOAD_MB,
+    MAX_URLS_PER_JOB,
+    OCR_CPU_MEM_ARENA,
+    OCR_INTER_OP_THREADS,
+    OCR_INTRA_OP_THREADS,
+    OCR_PREWARM,
 )
 from app.models import job_store
 from app.services.excel import process_workbook
 from app.services.matcher import parse_keywords
+from app.services.ocr import ocr_service
 
-app = FastAPI(title=APP_TITLE, docs_url=None, redoc_url=None)
-app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static", html=True), name="static")
 job_slots = threading.Semaphore(MAX_CONCURRENT_JOBS)
 
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    job_store.recover_interrupted()
+    cleanup_old_jobs()
+    if OCR_PREWARM:
+        ocr_service.warmup()
+    yield
+
+
+app = FastAPI(title=APP_TITLE, docs_url=None, redoc_url=None, lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static", html=True), name="static")
+
+
 def check_password(value: str | None) -> None:
-    if APP_PASSWORD and value != APP_PASSWORD:
-        raise HTTPException(status_code=401, detail="访问密码不正确")
+    if APP_PASSWORD:
+        supplied = value or ""
+        if not hmac.compare_digest(supplied, APP_PASSWORD):
+            raise HTTPException(status_code=401, detail="访问密码不正确")
 
 
 def cleanup_old_jobs() -> None:
     cutoff = time.time() - JOB_TTL_HOURS * 3600
-    for path in DATA_DIR.iterdir():
-        if path.is_dir() and path.stat().st_mtime < cutoff:
-            shutil.rmtree(path, ignore_errors=True)
-            job_store.remove(path.name)
+    try:
+        entries = list(DATA_DIR.iterdir())
+    except OSError:
+        return
+    for path in entries:
+        try:
+            if path.is_dir() and path.stat().st_mtime < cutoff:
+                shutil.rmtree(path, ignore_errors=True)
+                job_store.remove(path.name)
+        except OSError:
+            continue
 
 
 def run_job(
@@ -92,12 +123,18 @@ def run_job(
             changed_cells=changed,
             output_file=str(output_path),
             log_file=str(log_path),
+            error=None,
         )
     except Exception as exc:  # noqa: BLE001
         job_store.update(job_id, status="failed", message="处理失败", error=str(exc))
     finally:
         if acquired:
             job_slots.release()
+
+
+def start_job_thread(*args) -> None:
+    thread = threading.Thread(target=run_job, args=args, daemon=True, name=f"ocr-job-{args[0][:8]}")
+    thread.start()
 
 
 @app.get("/")
@@ -117,7 +154,6 @@ def config() -> dict:
 
 @app.post("/api/jobs", status_code=202)
 async def create_job(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     keywords_raw: str = Form(...),
     match_mode: str = Form("whole"),
@@ -143,8 +179,7 @@ async def create_job(
     job_id = uuid.uuid4().hex
     job_dir = DATA_DIR / job_id
     job_dir.mkdir(parents=True, exist_ok=False)
-    safe_name = f"input{suffix}"
-    input_path = job_dir / safe_name
+    input_path = job_dir / f"input{suffix}"
     output_path = job_dir / f"处理结果_已清除敏感词链接{suffix}"
     log_path = job_dir / "OCR识别记录.csv"
 
@@ -152,11 +187,19 @@ async def create_job(
     size = 0
     try:
         with input_path.open("wb") as output:
-            while chunk := await file.read(1024 * 1024):
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
                 size += len(chunk)
                 if size > max_bytes:
                     raise HTTPException(status_code=413, detail=f"文件不能超过 {MAX_UPLOAD_MB}MB")
                 output.write(chunk)
+        if size == 0:
+            raise HTTPException(status_code=400, detail="上传文件为空")
+        with input_path.open("rb") as handle:
+            if handle.read(4)[:2] != b"PK":
+                raise HTTPException(status_code=400, detail="文件不是有效的 Excel 工作簿")
     except Exception:
         shutil.rmtree(job_dir, ignore_errors=True)
         raise
@@ -164,13 +207,15 @@ async def create_job(
         await file.close()
 
     job_store.create(job_id)
-    # Use a dedicated thread so CPU-heavy OCR does not block the request loop.
-    background_tasks.add_task(
-        threading.Thread(
-            target=run_job,
-            args=(job_id, input_path, output_path, log_path, keywords, match_mode, case_sensitive, enhanced_ocr),
-            daemon=True,
-        ).start
+    start_job_thread(
+        job_id,
+        input_path,
+        output_path,
+        log_path,
+        keywords,
+        match_mode,
+        case_sensitive,
+        enhanced_ocr,
     )
     return {"job_id": job_id}
 
@@ -203,10 +248,23 @@ def download(job_id: str, kind: str, x_app_password: str | None = Header(default
             else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     else:
-        media_type = "text/csv"
+        media_type = "text/csv; charset=utf-8"
     return FileResponse(path, filename=path.name, media_type=media_type)
 
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "performance": {
+            **ocr_service.runtime_info(),
+            "prewarm_enabled": OCR_PREWARM,
+            "max_concurrent_jobs": MAX_CONCURRENT_JOBS,
+            "max_upload_mb": MAX_UPLOAD_MB,
+            "max_urls_per_job": MAX_URLS_PER_JOB,
+            "max_image_mb": MAX_IMAGE_MB,
+            "max_image_pixels": MAX_IMAGE_PIXELS,
+            "data_dir": str(DATA_DIR),
+            "temp_dir": os.getenv("TEMP", ""),
+        },
+    }
