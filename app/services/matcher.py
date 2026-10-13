@@ -11,15 +11,16 @@ class MatchResult:
     matched_keywords: tuple[str, ...]
 
 
-def parse_keywords(raw: str) -> list[str]:
+def parse_keywords(raw: str, *, case_sensitive: bool = False) -> list[str]:
     parts = re.split(r"[\n,，;；]+", raw)
     seen: set[str] = set()
     result: list[str] = []
     for item in parts:
         keyword = unicodedata.normalize("NFKC", item).strip()
-        if keyword and keyword.casefold() not in seen:
+        dedupe_key = keyword if case_sensitive else keyword.casefold()
+        if keyword and dedupe_key not in seen:
             result.append(keyword)
-            seen.add(keyword.casefold())
+            seen.add(dedupe_key)
     return result
 
 
