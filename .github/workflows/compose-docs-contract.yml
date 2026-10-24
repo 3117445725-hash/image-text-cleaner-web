@@ -1,0 +1,24 @@
+name: Compose documentation contract
+on:
+  pull_request:
+    paths:
+      - 'README.md'
+      - 'README_部署说明.md'
+      - 'docker-compose.yml'
+      - 'app/main.py'
+      - 'tests/test_compose_docs_contract.py'
+      - '.github/workflows/compose-docs-contract.yml'
+permissions:
+  contents: read
+jobs:
+  docs-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate Compose docs against application defaults
+        run: python -m unittest discover -s tests -p 'test_compose_docs_contract.py' -v
