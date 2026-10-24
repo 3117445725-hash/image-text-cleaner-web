@@ -45,7 +45,7 @@ docker compose up -d --build
 然后打开：
 
 ```text
-http://服务器IP:8000
+http://服务器IP:10000
 ```
 
 正式使用建议再通过 Nginx 或 Caddy 配置域名和 HTTPS。
@@ -61,10 +61,10 @@ docker compose up --build
 打开：
 
 ```text
-http://localhost:8000
+http://localhost:10000
 ```
 
-`docker-compose.yml` 默认密码为 `change-this-password`，正式上线前必须修改。
+Docker Compose 默认 `APP_PASSWORD` 为空（无应用层密码保护）。对外提供服务前请在 `.env` 中设置强 `APP_PASSWORD` 并配置 HTTPS；可通过 `WEB_PORT` 调整宿主机端口。
 
 ## 数据和隐私
 
