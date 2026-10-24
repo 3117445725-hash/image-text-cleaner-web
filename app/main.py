@@ -134,7 +134,7 @@ async def create_job(
     if match_mode not in {"whole", "substring"}:
         raise HTTPException(status_code=400, detail="匹配方式无效")
 
-    keywords = parse_keywords(keywords_raw)
+    keywords = parse_keywords(keywords_raw, case_sensitive=case_sensitive)
     if not keywords:
         raise HTTPException(status_code=400, detail="请至少输入一个检测关键词")
     if len(keywords) > 100:
