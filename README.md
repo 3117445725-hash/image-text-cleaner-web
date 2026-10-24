@@ -25,7 +25,7 @@
 docker compose up --build
 ```
 
-然后打开 `http://localhost:8000`。本机 compose 默认密码为 `change-this-password`，正式使用前必须修改。
+然后打开 `http://localhost:10000`（可通过 `WEB_PORT` 调整宿主机端口）。本机 Docker Compose 默认 `APP_PASSWORD` 为空，**不启用应用层密码校验**；对外提供服务前请设置强密码，并通过 HTTPS/反向代理限制访问。
 
 ## 注意
 
