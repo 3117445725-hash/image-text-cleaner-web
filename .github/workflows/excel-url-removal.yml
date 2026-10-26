@@ -1,0 +1,27 @@
+name: Excel exact URL removal regression
+on:
+  pull_request:
+    paths:
+      - 'app/services/excel.py'
+      - 'tests/test_excel_url_removal.py'
+      - '.github/workflows/excel-url-removal.yml'
+permissions:
+  contents: read
+jobs:
+  url-removal:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Compile Excel module and test
+        run: python -m compileall -q app/services/excel.py tests/test_excel_url_removal.py
+      - name: Exact URL removal regression
+        run: python -m unittest discover -s tests -p 'test_excel_url_removal.py' -v
