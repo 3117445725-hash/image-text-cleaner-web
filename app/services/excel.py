@@ -62,7 +62,14 @@ def _extract_occurrences(workbook) -> list[LinkOccurrence]:
 
 
 def _remove_url_from_text(text: str, url: str) -> str | None:
-    result = text.replace(url, "")
+    # Replace complete URL tokens only. Plain str.replace() corrupts an
+    # unrelated URL when the matched URL is its prefix (e.g. ?variant=2).
+    def remove_exact(match: re.Match[str]) -> str:
+        token = match.group(0)
+        candidate = token.rstrip(".,;，；)）]】")
+        return token[len(candidate):] if candidate == url else token
+
+    result = URL_RE.sub(remove_exact, text)
     result = re.sub(r"[ \t]*([,，;；|｜]+[ \t]*){2,}", r"\1", result)
     result = re.sub(r"^[\s,，;；|｜]+|[\s,，;；|｜]+$", "", result)
     result = re.sub(r"[ \t]{2,}", " ", result).strip()
