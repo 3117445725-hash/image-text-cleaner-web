@@ -1,0 +1,30 @@
+name: Downloader stream cleanup regression
+on:
+  pull_request:
+    paths:
+      - 'app/services/downloader.py'
+      - 'tests/test_downloader_stream_cleanup.py'
+      - '.github/workflows/downloader-stream-cleanup-regression.yml'
+permissions:
+  contents: read
+jobs:
+  downloader-stream-cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install minimal test dependency
+        run: python -m pip install 'httpx>=0.28,<1'
+      - name: Compile downloader and regression tests
+        run: python -m compileall -q app/services/downloader.py tests/test_downloader_stream_cleanup.py
+      - name: Verify streamed response lifecycle
+        run: python -m unittest discover -s tests -p 'test_downloader_stream_cleanup.py' -v
