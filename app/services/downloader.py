@@ -56,7 +56,12 @@ class ImageDownloader:
                 current_url = urljoin(current_url, location)
                 continue
 
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError:
+                # A streamed error response is not handed to fetch(), so close it here.
+                response.close()
+                raise
             return response, current_url
 
         raise ValueError(f"图片链接重定向超过 {self.MAX_REDIRECTS} 次")
