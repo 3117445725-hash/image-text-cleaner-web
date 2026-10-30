@@ -1,0 +1,35 @@
+name: OCR Active Job Cleanup Regression
+
+on:
+  pull_request:
+    paths:
+      - 'app/main.py'
+      - 'tests/test_active_job_cleanup.py'
+      - '.github/workflows/ocr-job-cleanup-contract.yml'
+  push:
+    branches:
+      - 'fix/preserve-active-ocr-job-dirs-20261030'
+    paths:
+      - 'app/main.py'
+      - 'tests/test_active_job_cleanup.py'
+      - '.github/workflows/ocr-job-cleanup-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup-contract:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Compile affected Python files
+        run: python -m py_compile app/main.py tests/test_active_job_cleanup.py
+      - name: Run filesystem cleanup regression
+        run: python -m unittest discover -s tests -p 'test_active_job_cleanup.py' -v
