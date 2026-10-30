@@ -36,6 +36,10 @@ def cleanup_old_jobs() -> None:
     cutoff = time.time() - JOB_TTL_HOURS * 3600
     for path in DATA_DIR.iterdir():
         if path.is_dir() and path.stat().st_mtime < cutoff:
+            # Directory mtime is not a reliable liveness signal for long OCR jobs.
+            job = job_store.get(path.name)
+            if job is not None and job.status in {"queued", "running"}:
+                continue
             shutil.rmtree(path, ignore_errors=True)
             job_store.remove(path.name)
 
