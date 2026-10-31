@@ -35,9 +35,25 @@ def check_password(value: str | None) -> None:
 def cleanup_old_jobs() -> None:
     cutoff = time.time() - JOB_TTL_HOURS * 3600
     for path in DATA_DIR.iterdir():
-        if path.is_dir() and path.stat().st_mtime < cutoff:
-            shutil.rmtree(path, ignore_errors=True)
-            job_store.remove(path.name)
+        try:
+            if not path.is_dir() or path.stat().st_mtime >= cutoff:
+                continue
+        except FileNotFoundError:
+            # Another request may have removed the same expired directory.
+            continue
+        # Directory mtime is not a reliable liveness signal for long OCR jobs.
+        job = job_store.get(path.name)
+        if job is not None and job.status in {"queued", "running"}:
+            continue
+        try:
+            shutil.rmtree(path)
+        except FileNotFoundError:
+            # Another request may already have removed this directory.
+            pass
+        except OSError:
+            # Preserve job metadata if deletion failed (e.g. locked Windows files).
+            continue
+        job_store.remove(path.name)
 
 
 def run_job(
