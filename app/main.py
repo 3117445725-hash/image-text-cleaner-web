@@ -45,7 +45,14 @@ def cleanup_old_jobs() -> None:
         job = job_store.get(path.name)
         if job is not None and job.status in {"queued", "running"}:
             continue
-        shutil.rmtree(path, ignore_errors=True)
+        try:
+            shutil.rmtree(path)
+        except FileNotFoundError:
+            # Another request may already have removed this directory.
+            pass
+        except OSError:
+            # Preserve job metadata if deletion failed (e.g. locked Windows files).
+            continue
         job_store.remove(path.name)
 
 
