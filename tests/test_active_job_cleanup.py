@@ -132,5 +132,24 @@ class ActiveJobCleanupTests(unittest.TestCase):
         self.assertNotIn("vanished", self.store.removed)
 
 
+
+    def test_locked_expired_directory_keeps_job_state(self):
+        """Windows locked-file deletion must not discard the job record."""
+        from unittest.mock import patch
+        path = self.folder("locked")
+        self.jobs["locked"] = SimpleNamespace(status="completed")
+
+        def simulated_locked_rmtree(target, *args, **kwargs):
+            if kwargs.get("ignore_errors"):
+                return None  # shutil.rmtree silently ignores permission errors
+            raise PermissionError("simulated Windows file lock")
+
+        with patch("shutil.rmtree", side_effect=simulated_locked_rmtree):
+            isolated_cleanup(self.root, self.store)()
+
+        self.assertTrue((path / "input.xlsx").exists())
+        self.assertIn("locked", self.jobs)
+        self.assertNotIn("locked", self.store.removed)
+
 if __name__ == "__main__":
     unittest.main()
