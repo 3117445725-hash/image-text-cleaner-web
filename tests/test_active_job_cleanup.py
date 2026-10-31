@@ -107,5 +107,30 @@ class ActiveJobCleanupTests(unittest.TestCase):
         self.assertIn("orphan", self.store.removed)
 
 
+    def test_disappearing_directory_between_type_and_timestamp_checks(self):
+        """Concurrent cleanup can remove an entry after is_dir but before stat."""
+        from unittest.mock import patch
+
+        path = self.folder("vanished")
+        self.jobs["vanished"] = SimpleNamespace(status="completed")
+        original_stat = Path.stat
+        calls = 0
+
+        def racing_stat(candidate, *args, **kwargs):
+            nonlocal calls
+            if candidate == path:
+                calls += 1
+                if calls == 2:
+                    raise FileNotFoundError("simulated concurrent directory removal")
+            return original_stat(candidate, *args, **kwargs)
+
+        with patch.object(Path, "stat", new=racing_stat):
+            isolated_cleanup(self.root, self.store)()
+
+        self.assertEqual(calls, 2)
+        self.assertTrue((path / "input.xlsx").exists())
+        self.assertNotIn("vanished", self.store.removed)
+
+
 if __name__ == "__main__":
     unittest.main()
