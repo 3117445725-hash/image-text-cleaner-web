@@ -16,7 +16,7 @@ from app.services.ocr import ocr_service
 
 URL_RE = re.compile(r"https?://[^\s<>\"',，;；|｜]+", re.IGNORECASE)
 HYPERLINK_FORMULA_RE = re.compile(
-    r'^=HYPERLINK\(\s*"(?P<url>https?://[^"]+)"\s*[;,]\s*"(?P<label>[^"]*)"\s*\)$',
+    r'^=HYPERLINK\(\s*"(?P<url>https?://[^"]+)"(?:\s*[;,]\s*(?P<label>.+?))?\s*\)$',
     re.IGNORECASE,
 )
 
