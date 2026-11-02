@@ -15,6 +15,21 @@ from app.services.matcher import match_text
 from app.services.ocr import ocr_service
 
 URL_RE = re.compile(r"https?://[^\s<>\"',，;；|｜]+", re.IGNORECASE)
+
+
+def _trim_url_token(token: str) -> str:
+    """Remove prose punctuation, but preserve balanced URL parentheses/brackets."""
+    closers = {")": "(", "）": "（", "]": "[", "】": "【"}
+    while token:
+        last = token[-1]
+        if last in ".,;，；":
+            token = token[:-1]
+        elif last in closers and token.count(last) > token.count(closers[last]):
+            token = token[:-1]
+        else:
+            break
+    return token
+
 HYPERLINK_FORMULA_RE = re.compile(
     r'^=HYPERLINK\(\s*"(?P<url>https?://[^"]+)"\s*[;,]\s*"(?P<label>[^"]*)"\s*\)$',
     re.IGNORECASE,
@@ -57,7 +72,7 @@ def _extract_occurrences(workbook) -> list[LinkOccurrence]:
                         found.append(LinkOccurrence(sheet.title, cell.coordinate, formula_match.group("url"), "formula"))
                         continue
                     for match in URL_RE.finditer(value):
-                        found.append(LinkOccurrence(sheet.title, cell.coordinate, match.group(0).rstrip(".,;，；)）]】"), "value"))
+                        found.append(LinkOccurrence(sheet.title, cell.coordinate, _trim_url_token(match.group(0)), "value"))
     return found
 
 
@@ -66,7 +81,7 @@ def _remove_url_from_text(text: str, url: str) -> str | None:
     # unrelated URL when the matched URL is its prefix (e.g. ?variant=2).
     def remove_exact(match: re.Match[str]) -> str:
         token = match.group(0)
-        candidate = token.rstrip(".,;，；)）]】")
+        candidate = _trim_url_token(token)
         return token[len(candidate):] if candidate == url else token
 
     result = URL_RE.sub(remove_exact, text)
