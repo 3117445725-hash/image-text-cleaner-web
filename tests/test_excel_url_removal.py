@@ -19,16 +19,16 @@ def _load_url_helper():
             isinstance(target, ast.Name) and target.id == "URL_RE" for target in node.targets
         ):
             selected.append(node)
-        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "_remove_url_from_text":
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in {"_remove_url_from_text", "_trim_url_token"}:
             selected.append(node)
-    if len(selected) != 2:
-        raise AssertionError("URL_RE and _remove_url_from_text must exist in production source")
+    if len(selected) != 3:
+        raise AssertionError("URL_RE, _trim_url_token, and _remove_url_from_text must exist in production source")
     namespace = {"re": re}
     exec(compile(ast.Module(body=selected, type_ignores=[]), str(SOURCE), "exec"), namespace)
-    return namespace["_remove_url_from_text"]
+    return namespace["_remove_url_from_text"], namespace["_trim_url_token"]
 
 
-remove_url = _load_url_helper()
+remove_url, trim_url = _load_url_helper()
 
 
 class ExactUrlRemovalTests(unittest.TestCase):
@@ -72,6 +72,32 @@ class ExactUrlRemovalTests(unittest.TestCase):
         upper = "https://cdn.example.com/A.png"
         lower = "https://cdn.example.com/a.png"
         self.assertEqual(remove_url(f"{upper}|{lower}", upper), lower)
+
+
+    def test_valid_url_with_balanced_parentheses_is_not_truncated(self):
+        url = "https://cdn.example.com/photo_(2)"
+        self.assertEqual(trim_url(url), url)
+
+    def test_extra_closing_parenthesis_and_sentence_punctuation_are_removed(self):
+        url = "https://cdn.example.com/photo_(2)"
+        self.assertEqual(trim_url(url + ")]."), url)
+
+    def test_valid_balanced_square_brackets_are_preserved(self):
+        url = "https://cdn.example.com/photo_[v2]"
+        self.assertEqual(trim_url(url), url)
+
+    def test_unmatched_square_bracket_is_trimmed(self):
+        self.assertEqual(trim_url("https://cdn.example.com/photo.png]"), "https://cdn.example.com/photo.png")
+
+    def test_remove_exact_balanced_url_preserves_other_balanced_url(self):
+        bad = "https://cdn.example.com/photo_(2)"
+        good = "https://cdn.example.com/photo_(3)"
+        self.assertEqual(remove_url(f"{bad} | {good}", bad), good)
+
+    def test_balanced_url_removal_preserves_surrounding_punctuation(self):
+        bad = "https://cdn.example.com/photo_(2)"
+        self.assertEqual(remove_url(f"({bad}).", bad), "().")
+
 
 
 if __name__ == "__main__":
